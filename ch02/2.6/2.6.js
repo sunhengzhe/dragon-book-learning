@@ -32,6 +32,12 @@ Tag.NUM = 256;
 Tag.ID = 257;
 Tag.TRUE = 258;
 Tag.FALSE = 259;
+Tag.GTE = 260;
+Tag.LTE = 261;
+Tag.GT = 262;
+Tag.LT = 263;
+Tag.EQ = 264;
+Tag.ASSIGN = 265;
 
 /** Number */
 class Number extends Token {
@@ -71,12 +77,65 @@ class Lexer {
         this.line++;
       } else if (Util.isSpace(this.peek)) {
         continue;
+      } else if (this.peek === '/') {
+        let peek = nextToken();
+        if (peek === '/') {
+          // 单行注释
+          do {
+            this.peek = nextToken();
+          } while (!Util.isLineBreak(this.peek));
+          continue;
+        } else if (peek === '*') {
+          // 块注释
+          peek = nextToken();
+          let peek2 = nextToken();
+          while (peek !== '*' && peek2 !== '/') {
+            peek = peek2;
+            peek2 = nextToken();
+          }
+
+          this.peek = nextToken();
+          continue;
+        }
       } else if (!this.peek) {
         // 结束
         return null;
       } else {
         break;
       }
+    }
+
+    if (this.peek === '>') {
+      this.peek = nextToken();
+
+      if (this.peek === '=') {
+        this.peek = ' ';
+        return new Word(Tag.GTE, '>=');
+      }
+
+      return new Token('>');
+    }
+
+    if (this.peek === '<') {
+      this.peek = nextToken();
+
+      if (this.peek === '=') {
+        this.peek = ' ';
+        return new Word(Tag.LTE, '<=');
+      }
+
+      return new Token('<');
+    }
+
+    if (this.peek === '=') {
+      this.peek = nextToken();
+
+      if (this.peek === '=') {
+        this.peek = ' ';
+        return new Word(Tag.EQ, '==');
+      }
+
+      return new Token('=');
     }
 
     // 提取数值型
@@ -115,7 +174,9 @@ class Lexer {
 
 // test
 const expr = `  const key = 123;
+    // will be ignored
     const flag = true;
+    /* just commend */ const a = key > 123 >= 123 < 123 <= 123 == 123;
 `;
 let nextIndex = 0;
 const lexer = new Lexer();
