@@ -40,16 +40,20 @@ Expr rvalue(x: Expr) {
 
 例 2.20 当将函数 rvalue 应用于 a[i] = 2*a[j-k] 的语法树时
 
-这是一个 Assign 结点，求 lvalue(a[i]) = rvalue(2 * a[j - k])
-2 * a[j - k] 为一个 Op(op, y, z) 结点，求 rvalue(2) op rvalue(a[j-k])
-a[j-k] 为 Access(y, z) 结点，求 lvalue(a[j-k])
-求 rvalue(j-k)
-求 rvalue(j) op rvalue(k)
+1. 这是一个 Assign 结点，求 lvalue(a[i]) = rvalue(2 * a[j - k])
+2. 2 * a[j - k] 为一个 Op(op, y, z) 结点，求 rvalue(2) op rvalue(a[j-k])
+3. a[j-k] 为 Access(y, z) 结点，求 lvalue(a[j-k])
+4. 求 rvalue(j-k)
+5. 求 rvalue(j) op rvalue(k)
 
+output:
+
+```
 t3 = j - k
 t2 = a[t3]
 t1 = 2*t2
 a[i] = t1
+```
 
 ### 2.8.1
 为 for 语句定义一个类 For
