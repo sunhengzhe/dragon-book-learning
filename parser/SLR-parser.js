@@ -140,3 +140,194 @@
   * - shift if
   *   - s contains X -> β.tw
   */
+
+const Lexer = require('../lexical-analysis/lexer');
+
+let nextIndex = 0;
+const lexer = new Lexer();
+
+/**
+ *  * S' -> E
+ * E -> T+E | T
+ * T -> int*T | int | (E)
+ */
+const PRODUCTIONS = {
+  S: [
+    ['E']
+  ],
+  E: [
+    ['T', '+', 'E'],
+    ['T'],
+  ],
+  T: [
+    ['int', '*', 'T'],
+    ['int'],
+    ['(', 'E', ')']
+  ],
+};
+
+const FOLLOW_SET = {
+  'S': ['$'],
+  'E': ['$', ')'],
+  'T': ['$', ')', '+'],
+}
+
+class DFA {
+  constructor() {
+    this.finalStates = ['B', 'C', 'D', 'I', 'J', 'K'];
+    this.stateMap = {
+      A: {
+        E: 'B',
+        T: 'C',
+        'int': 'D',
+        '(': 'E',
+      },
+      C: {
+        '+': 'F',
+      },
+      D: {
+        '*': 'G',
+      },
+      E: {
+        E: 'H',
+        T: 'C',
+        'int': 'D',
+        '(': 'E',
+      },
+      F: {
+        E: 'I',
+        T: 'C',
+        'int': 'D',
+        '(': 'E',
+      },
+      G: {
+        T: 'J',
+        'int': 'D',
+        '(': 'E',
+      },
+      H: {
+        ')': 'K',
+      },
+    };
+  }
+  getNextState(from, input) {
+    const nextStateMap = this.stateMap[from] || {}
+    return nextStateMap[input];
+  }
+  isFinalState(state) {
+    return this.finalStates.includes(state);
+  }
+  isShouldReduce(state, input) {
+    if (state === 'B') {
+      return FOLLOW_SET['S'].includes(input);
+    } else if (state === 'C') {
+      return FOLLOW_SET['E'].includes(input);
+    } else if (state === 'D') {
+      return FOLLOW_SET['T'].includes(input);
+    } else if (state === 'I') {
+      return FOLLOW_SET['E'].includes(input);
+    } else if (state === 'J') {
+      return FOLLOW_SET['T'].includes(input);
+    } else if (state === 'K') {
+      return FOLLOW_SET['T'].includes(input);
+    }
+  }
+  reduce(stack, state, nextTag) {
+    const _reduce = (prodLeft, prodRight) => {
+      let before = '';
+      for (let i = 0; i < prodRight.length; i++) {
+        const pair = stack.pop();
+        before = pair[0] + before;
+      }
+
+      console.log('REDUCE: ', before + ' -> ', prodLeft);
+
+      if (prodLeft === 'S') {
+        return true;
+      }
+
+      const prevState = stack.length > 0 ? stack[stack.length - 1][1] : 'A';
+      const newState = this.getNextState(prevState, prodLeft);
+
+      if (!newState) {
+        throw new Error('no state found');
+      }
+
+      stack.push([prodLeft, newState]);
+
+      if (this.isShouldReduce(newState, nextTag)) {
+        return this.reduce(stack, newState, nextTag);
+      }
+    }
+
+    if (state === 'B') {
+      // means success
+      return _reduce('S', PRODUCTIONS['S'][0]);
+    } else if (state === 'C') {
+      return _reduce('E', PRODUCTIONS['E'][1]);
+    } else if (state === 'D') {
+      return _reduce('T', PRODUCTIONS['T'][1]);
+    } else if (state === 'I') {
+      return _reduce('E', PRODUCTIONS['E'][0]);
+    } else if (state === 'J') {
+      return _reduce('T', PRODUCTIONS['T'][0]);
+    } else if (state === 'K') {
+      return _reduce('T', PRODUCTIONS['T'][2]);
+    }
+  }
+}
+
+const expr = process.argv[2] || '(3 * 4 + 8)';
+
+const inputStack = [];
+let currentState = 'A';
+
+const dfa = new DFA();
+
+let tag;
+let nextTag;
+while (tag !== '$') {
+  tag = nextTag ? nextTag : lexer.scan(() => expr[nextIndex++]).tag;
+  tag = tag === 256 ? 'int' : tag;
+
+  if (tag === '$') {
+    if (inputStack.length > 0) {
+      error();
+    }
+    return;
+  }
+
+  const token = lexer.scan(() => expr[nextIndex++]);
+  if (token === Lexer.$) {
+    nextTag = '$';
+  } else {
+    nextTag = token.tag;
+  }
+
+  currentState = dfa.getNextState(currentState, tag);
+  inputStack.push([tag, currentState]);
+
+  // check
+  if (dfa.isFinalState(currentState) && dfa.isShouldReduce(currentState, nextTag)) {
+    try {
+      const isSuccess = dfa.reduce(inputStack, currentState, nextTag);
+      if (isSuccess) {
+        success();
+        return;
+      }
+      currentState = inputStack[inputStack.length - 1][1];
+    } catch (error) {
+      error();
+    }
+  }
+
+  console.log('STACK: ', inputStack)
+}
+
+function success() {
+  console.log('\nSUCCESS!!!', expr, 'is a valid expression');
+}
+
+function error() {
+  console.log('\nERROR!!!', expr, 'is not a valid expression');
+}
